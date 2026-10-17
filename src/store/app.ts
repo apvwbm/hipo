@@ -114,6 +114,12 @@ export function cambiarEstado(c: Casa, estado: EstadoCasa) {
   guardarCasa({ ...c, estado, compra: c.compra ?? (conCompra ? { ...COMPRA_DEFECTO, precio: c.precio } : null) });
 }
 
+/** "Ya he firmado las arras": la casa pasa a arras, con hoy como fecha si no tenía. */
+export function firmarArras(c: Casa) {
+  const compra = c.compra ?? { ...COMPRA_DEFECTO, precio: c.precio };
+  guardarCasa({ ...c, estado: 'arras', compra: { ...compra, fechaArras: compra.fechaArras ?? hoyISO() } });
+}
+
 /** Borra la casa y sus enlaces (la base lo hace en cascada); "deshacer" lo devuelve todo. */
 export function borrarCasa(c: Casa) {
   const { archivos, hipotecas } = get();

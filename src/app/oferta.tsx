@@ -178,7 +178,7 @@ export default function PantallaOferta() {
       <Seccion titulo="Lo que te cuesta">
         <Cifra rotulo={h.tipo === 'fija' ? 'Cuota' : 'Cuota al principio'} valor={`${euros(r.cuota)}/mes`} apoyo={r.cuotaConVinculaciones > r.cuota ? `${euros(r.cuotaConVinculaciones)} con los productos` : undefined} />
         {r.cuotaDespues !== null && (
-          <Fila titulo="Cuota después, con el Euríbor de hoy" subtitulo={r.pendienteTramo ? `Te quedarán ${eurosRedondos(r.pendienteTramo)} por pagar` : undefined} derecha={euros(r.cuotaDespues)} />
+          <Fila titulo="Cuota después, con el Euríbor de referencia" subtitulo={r.pendienteTramo ? `Te quedarán ${eurosRedondos(r.pendienteTramo)} por pagar` : undefined} derecha={euros(r.cuotaDespues)} />
         )}
         {r.estres && <Fila titulo="Si el Euríbor sube 1 / 2 puntos" derecha={`${euros(r.estres[0])} / ${euros(r.estres[1])}`} />}
         <Fila titulo="Intereses" derecha={eurosRedondos(r.intereses)} />

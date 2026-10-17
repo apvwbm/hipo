@@ -30,7 +30,7 @@
 - **Ofertas de los bancos** ordenadas por coste real, y si cada producto vinculado compensa.
 - **Papeles** que pide el banco: cuáles faltan y cuáles han caducado.
 - **Plazos y avisos**: arras, tasación, FEIN, notario, firma e impuestos.
-- **Una guía en seis fases** que te dice qué toca en cada momento.
+- **Paso a paso, por fases**: solo ves lo que toca ahora y cada paso te lleva al siguiente.
 
 Pensada para el proceso español: solo en castellano y en euros.
 

@@ -116,9 +116,9 @@ export const AJUSTES_DEFECTO: Ajustes = {
   impuestoPropio: null,
   gastosPct: 1_000,
   tasacion: 40_000,
-  // Euríbor 12 meses, media de septiembre de 2026.
+  // Euríbor 12 meses de partida (media de septiembre de 2026). Sin internet no se
+  // actualiza solo: la app pide revisarlo, sin enseñar fechas que envejecen.
   euribor: 3_247,
-  euriborFecha: '2026-09-30',
   financiacion: 80_000,
   plazo: 30,
   tinSupuesto: 3_000,

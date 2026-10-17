@@ -111,8 +111,8 @@ export default function PantallaAjustes() {
       <Seccion titulo="Acerca de">
         <Text style={[typo.cuerpo, { color: color.texto }]}>HIPO {Constants.expoConfig?.version ?? ''}</Text>
         <Text style={[typo.apoyo, { color: color.texto2 }]}>
-          Sin cuentas, sin anuncios, sin internet: la app ni siquiera tiene permiso para conectarse. Las cifras son estimaciones con los datos
-          generales de octubre de 2026; la última palabra es del banco, el notario y Hacienda.
+          Sin cuentas, sin anuncios, sin internet: la app ni siquiera tiene permiso para conectarse. Las cifras son estimaciones con los tipos
+          generales de cada comunidad, que pueden cambiar: la última palabra es del banco, el notario y Hacienda.
         </Text>
         <Fila titulo="Hecho por Aitor Pérez" subtitulo="apvwbm.com" icono="globe" onPress={() => void Linking.openURL(WEB)} />
         <Fila titulo="Invítame a un café" subtitulo="HIPO es gratis y lo seguirá siendo." icono="coffee" onPress={() => void Linking.openURL(KOFI)} />

@@ -646,7 +646,7 @@ export function Vacio({ texto, cta, onPress }: { texto: string; cta?: string; on
   return (
     <View style={s.vacio}>
       <Text style={[typo.texto, { color: color.texto2, textAlign: 'center' }]}>{texto}</Text>
-      {cta && onPress && <Boton texto={cta} onPress={onPress} variante="secundario" icono="plus" />}
+      {cta && onPress && <Boton texto={cta} onPress={onPress} variante="secundario" icono="plus" style={{ alignSelf: 'stretch' }} />}
     </View>
   );
 }

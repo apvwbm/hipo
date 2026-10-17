@@ -1,34 +1,80 @@
-// Inicio = la guía. En qué fase estás (deducido de tus casas, empieces donde empieces),
-// qué te toca hacer, qué viene y de qué tener cuidado. Todo derivado: aquí no se
-// guarda nada salvo las marcas de las tareas.
+// Inicio = la guía, por fases. Arriba lo que toca ahora y un botón grande para dar el
+// siguiente paso; lo ya hecho se pliega (pero se puede abrir) y lo que viene solo se
+// nombra. La fase se deduce de tus datos: aquí no se guarda nada salvo las marcas.
 
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, Text } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Boton, BotonIcono, Casilla, Cifra, Fila, Nota, Pantalla, Progreso, Seccion } from '@/components/ui';
+import { Ayuda, Boton, BotonIcono, Casilla, Chip, Chips, Cifra, Fila, Nota, Pantalla, Progreso, Seccion } from '@/components/ui';
 import { useCapacidad, useGuia, useHoy } from '@/hooks';
 import { FASES, type Tarea } from '@/lib/catalogo';
 import { eurosRedondos } from '@/lib/dinero';
 import { diasEntre, fechaCorta, fechaLarga, relativa } from '@/lib/fechas';
-import type { EstadoTarea } from '@/lib/motor';
-import { marcar } from '@/store/app';
-import { color, typo } from '@/theme';
+import type { EstadoTarea, Paso } from '@/lib/motor';
+import { avisar, cambiarEstado, firmarArras, marcar, useApp } from '@/store/app';
+import { color, espacio, typo } from '@/theme';
+import type { Casa } from '@/types';
 
 export default function Inicio() {
-  const { x, fase, tareas, proximos, avisos } = useGuia();
+  const { x, fase, siguiente, tareas, proximos, avisos } = useGuia();
   const cap = useCapacidad();
   const hoy = useHoy();
+  const casas = useApp((s) => s.casas);
   const [antes, setAntes] = useState(false);
-  const [todas, setTodas] = useState(false);
   const casa = x.compra;
   const k = casa?.compra;
 
-  const irA = (ir: Tarea['ir'] | 'compra' | '/papeles' | '/ajustes') => {
-    if (ir === 'compra') router.push(casa ? { pathname: '/casa/[id]', params: { id: casa.id, parte: 'compra' } } : '/casas');
-    else if (ir === '/ajustes') router.push('/ajustes');
-    else if (ir) router.push(ir);
+  const verCompra = (c: Casa) => router.push({ pathname: '/casa/[id]', params: { id: c.id, parte: 'compra' } });
+  const irA = (ir: Tarea['ir'] | '/papeles' | '/ajustes') => {
+    if (ir === 'compra') return casa ? verCompra(casa) : router.push('/casas');
+    if (ir) router.push(ir);
   };
+
+  const dar = (paso: Paso) => {
+    if (paso.accion === 'titular') return router.push('/titular');
+    if (paso.accion === 'ahorros') return router.push('/hipoteca');
+    if (paso.accion === 'nueva') return router.push('/nueva');
+    if (paso.accion === 'ofertas') return router.push('/oferta');
+    if (!casa) return;
+    if (paso.accion === 'compra') return verCompra(casa);
+    if (paso.accion === 'arras') {
+      return Alert.alert('Arras firmadas', `¿Has firmado las arras de "${casa.nombre}"? Pasarás a conseguir la hipoteca.`, [
+        { text: 'Todavía no', style: 'cancel' },
+        {
+          text: 'Sí',
+          onPress: () => {
+            firmarArras(casa);
+            verCompra(casa);
+          },
+        },
+      ]);
+    }
+    if (paso.accion === 'comprada') {
+      Alert.alert('¡Ya es tuya!', `¿Has firmado la compra de "${casa.nombre}" en la notaría?`, [
+        { text: 'Todavía no', style: 'cancel' },
+        {
+          text: 'Sí',
+          onPress: () => {
+            cambiarEstado(casa, 'comprada');
+            avisar('¡Enhorabuena! Te quedan unos trámites de después.');
+          },
+        },
+      ]);
+    }
+  };
+
+  const elegir = (c: Casa) =>
+    Alert.alert('Elegir casa', `¿Vas a por "${c.nombre}"? Aparecerán los pasos y papeles para reservarla.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Esta es',
+        onPress: () => {
+          cambiarEstado(c, 'oferta');
+          verCompra(c);
+        },
+      },
+    ]);
 
   const casilla = ({ tarea, estado, auto }: EstadoTarea) => (
     <Casilla
@@ -44,8 +90,10 @@ export default function Inicio() {
   );
 
   const deEsta = tareas.filter((t) => t.tarea.fase === fase);
-  const pendientesAntes = tareas.filter((t) => t.tarea.fase < fase && t.estado === 'pendiente');
+  const anteriores = tareas.filter((t) => t.tarea.fase < fase);
+  const pendientesAntes = anteriores.filter((t) => t.estado === 'pendiente').length;
   const hechas = deEsta.filter((t) => t.estado !== 'pendiente').length;
+  const candidatas = casas.filter((c) => c.estado === 'interesa' || c.estado === 'finalista');
 
   return (
     <Pantalla titulo="HIPO" derecha={<BotonIcono icono="settings" etiqueta="Ajustes" onPress={() => router.push('/ajustes')} />}>
@@ -61,7 +109,7 @@ export default function Inicio() {
         ) : (
           <Nota
             icono="lock"
-            texto={'HIPO te acompaña desde "quiero comprar" hasta las llaves. Todo lo que apuntas se queda en este móvil, cifrado: sin cuentas y sin internet.'}
+            texto={'HIPO te acompaña desde "quiero comprar" hasta las llaves, paso a paso. Todo lo que apuntas se queda en este móvil, cifrado: sin cuentas y sin internet.'}
           />
         )}
       </Seccion>
@@ -74,21 +122,24 @@ export default function Inicio() {
         </Seccion>
       )}
 
-      <Seccion titulo={`Fase ${fase} de 6 · ${FASES[fase - 1]}`} derecha={<Text style={[typo.micro, { color: color.texto2 }]}>{`${hechas} de ${deEsta.length}`}</Text>}>
+      <Seccion
+        titulo={`Fase ${fase} de ${FASES.length} · ${FASES[fase - 1]}`}
+        derecha={<Text style={[typo.micro, { color: color.texto2 }]}>{`${hechas} de ${deEsta.length}`}</Text>}
+      >
         <Progreso hecho={hechas} total={deEsta.length} />
+        {siguiente?.accion === 'elegir' ? (
+          <View style={s.paso}>
+            <Text style={typo.cuerpo}>¿Ya tienes tu casa? Elígela:</Text>
+            <Chips>
+              {candidatas.map((c) => (
+                <Chip key={c.id} texto={c.nombre} icono="home" activo={false} onPress={() => elegir(c)} />
+              ))}
+            </Chips>
+          </View>
+        ) : siguiente ? (
+          <Boton texto={siguiente.texto} icono="arrow-right" onPress={() => dar(siguiente)} style={s.paso} />
+        ) : null}
         {deEsta.map(casilla)}
-        {pendientesAntes.length > 0 && (
-          <>
-            <Boton
-              texto={`Te quedan ${pendientesAntes.length} de antes`}
-              variante="texto"
-              icono={antes ? 'chevron-up' : 'chevron-down'}
-              onPress={() => setAntes(!antes)}
-              style={{ alignSelf: 'flex-start' }}
-            />
-            {antes && pendientesAntes.map(casilla)}
-          </>
-        )}
       </Seccion>
 
       {proximos.length > 0 && (
@@ -107,17 +158,35 @@ export default function Inicio() {
         </Seccion>
       )}
 
-      <Seccion>
-        <Boton texto={todas ? 'Ocultar las demás fases' : 'Ver todas las fases'} variante="secundario" icono={todas ? 'chevron-up' : 'list'} onPress={() => setTodas(!todas)} />
-      </Seccion>
-      {todas &&
-        FASES.map((nombre, i) =>
-          i + 1 === fase ? null : (
-            <Seccion key={nombre} titulo={`${i + 1} · ${nombre}`}>
-              {tareas.filter((t) => t.tarea.fase === i + 1).map(casilla)}
-            </Seccion>
-          ),
-        )}
+      {fase > 1 && (
+        <Seccion>
+          <Boton
+            texto={`Fases anteriores${pendientesAntes ? ` · ${pendientesAntes} sin hacer` : ''}`}
+            variante="texto"
+            icono={antes ? 'chevron-up' : 'chevron-down'}
+            onPress={() => setAntes(!antes)}
+            style={{ alignSelf: 'flex-start' }}
+          />
+          {antes &&
+            FASES.slice(0, fase - 1).map((nombre, i) => (
+              <View key={nombre}>
+                <Text style={[typo.micro, s.fase]}>{`${i + 1} · ${nombre}`}</Text>
+                {anteriores.filter((t) => t.tarea.fase === i + 1).map(casilla)}
+              </View>
+            ))}
+        </Seccion>
+      )}
+
+      {fase < FASES.length && (
+        <Seccion titulo="Lo que viene">
+          <Ayuda>{FASES.slice(fase).map((nombre, i) => `${fase + i + 1} · ${nombre}`).join('   ')}</Ayuda>
+        </Seccion>
+      )}
     </Pantalla>
   );
 }
+
+const s = StyleSheet.create({
+  paso: { marginVertical: espacio.sm, gap: espacio.sm },
+  fase: { color: color.texto2, textTransform: 'uppercase', marginTop: espacio.md, marginBottom: espacio.xs },
+});

@@ -1,13 +1,12 @@
-// Hipoteca: cuánto te puedes permitir (con quién compra y sus números) y las ofertas
-// de los bancos ordenadas por lo que de verdad cuestan.
+// Hipoteca: cuánto te puedes permitir (con quién compra y sus números) y, desde que
+// eliges casa, las ofertas de los bancos ordenadas por lo que de verdad cuestan.
 
 import { router } from 'expo-router';
 
 import { Ayuda, Boton, CampoDinero, CampoPct, Cifra, Fila, Nota, Pantalla, Pasos, Seccion, Segmentado } from '@/components/ui';
-import { useCapacidad, useHipotecas, useHoy } from '@/hooks';
+import { useCapacidad, useGuia, useHipotecas } from '@/hooks';
 import { CONTRATOS, EDAD_LIMITE, RATIO_ENDEUDAMIENTO } from '@/lib/catalogo';
 import { aplicarPct, euros, eurosRedondos, pct } from '@/lib/dinero';
-import { fechaCorta } from '@/lib/fechas';
 import { cambiarAjustes, useApp } from '@/store/app';
 import { color } from '@/theme';
 
@@ -18,9 +17,10 @@ export default function PantallaHipoteca() {
   const ofertas = useHipotecas();
   const titulares = useApp((s) => s.titulares);
   const a = useApp((s) => s.ajustes);
-  const hoy = useHoy();
   const conIngresos = cap.ingresos > 0;
   const mejor = ofertas.find((o) => !o.h.descartada);
+  // Las ofertas salen al elegir casa (antes no hay nada que pedir al banco), o si ya hay alguna.
+  const verOfertas = useGuia().fase >= 3 || ofertas.length > 0;
 
   const apoyo = !conIngresos
     ? 'Di quién compra y cuánto ingresa.'
@@ -76,8 +76,7 @@ export default function PantallaHipoteca() {
           onCambio={(v) => cambiarAjustes({ financiacion: v })}
         />
         <Ayuda>
-          Sobre el menor entre precio y tasación. Lo normal es el 80 %. Con el aval del ICO (hasta 35 años o con hijos menores, hasta el 31-12-2027)
-          puede llegar al 100 %.
+          Sobre el menor entre precio y tasación. Lo normal es el 80 %.
         </Ayuda>
         {conIngresos && (
           <Fila
@@ -105,34 +104,40 @@ export default function PantallaHipoteca() {
         />
       </Seccion>
 
-      <Seccion titulo="Ofertas de los bancos" derecha={<Boton texto="Añadir" variante="texto" icono="plus" onPress={() => router.push('/oferta')} />}>
-        {ofertas.length === 0 ? (
-          <Ayuda>Pide oferta a 3 bancos o más y apúntalas aquí: la app las ordena por lo que cuestan de verdad.</Ayuda>
-        ) : (
-          <Ayuda>Ordenadas por coste total: intereses más lo que cuestan los productos que contratas.</Ayuda>
-        )}
-        {ofertas.map(({ h, r }) => (
-          <Fila
-            key={h.id}
-            titulo={h.banco}
-            subtitulo={`${h.descartada ? 'Descartada · ' : h === mejor?.h && ofertas.length > 1 ? 'La más barata · ' : ''}${TIPOS[h.tipo]} · ${pct(h.tin)} · ${h.anios} años`}
-            derecha={`${euros(r.cuota)}/mes`}
-            subderecha={`cuesta ${eurosRedondos(r.costeTotal)}`}
-            tintoDerecha={h.descartada ? color.texto3 : undefined}
-            onPress={() => router.push({ pathname: '/oferta', params: { id: h.id } })}
-            chevron
-          />
-        ))}
-      </Seccion>
+      {verOfertas ? (
+        <>
+          <Seccion titulo="Ofertas de los bancos" derecha={<Boton texto="Añadir" variante="texto" icono="plus" onPress={() => router.push('/oferta')} />}>
+            {ofertas.length === 0 ? (
+              <Ayuda>Pide oferta a 3 bancos o más y apúntalas aquí: la app las ordena por lo que cuestan de verdad.</Ayuda>
+            ) : (
+              <Ayuda>Ordenadas por coste total: intereses más lo que cuestan los productos que contratas.</Ayuda>
+            )}
+            {ofertas.map(({ h, r }) => (
+              <Fila
+                key={h.id}
+                titulo={h.banco}
+                subtitulo={`${h.descartada ? 'Descartada · ' : h === mejor?.h && ofertas.length > 1 ? 'La más barata · ' : ''}${TIPOS[h.tipo]} · ${pct(h.tin)} · ${h.anios} años`}
+                derecha={`${euros(r.cuota)}/mes`}
+                subderecha={`cuesta ${eurosRedondos(r.costeTotal)}`}
+                tintoDerecha={h.descartada ? color.texto3 : undefined}
+                onPress={() => router.push({ pathname: '/oferta', params: { id: h.id } })}
+                chevron
+              />
+            ))}
+          </Seccion>
 
-      <Seccion titulo="Euríbor">
-        <CampoPct
-          etiqueta="Euríbor a 12 meses"
-          ayuda={`Dato del ${fechaCorta(a.euriborFecha, hoy)}. La app no tiene internet: actualízalo tú cuando cambie. Lo usan las variables y las mixtas.`}
-          valor={a.euribor}
-          onGuardar={(v) => cambiarAjustes({ euribor: v, euriborFecha: hoy })}
-        />
-      </Seccion>
+          <Seccion titulo="Euríbor">
+            <CampoPct
+              etiqueta="Euríbor a 12 meses"
+              ayuda="La app no tiene internet, así que no se actualiza solo: busca el Euríbor del último mes y cámbialo si ha variado. Lo usan las hipotecas variables y mixtas."
+              valor={a.euribor}
+              onGuardar={(euribor) => cambiarAjustes({ euribor })}
+            />
+          </Seccion>
+        </>
+      ) : (
+        <Ayuda>Cuando elijas casa, aquí apuntarás y compararás las ofertas de los bancos.</Ayuda>
+      )}
     </Pantalla>
   );
 }

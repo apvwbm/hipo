@@ -30,6 +30,7 @@ import {
   plazoMax,
   proximos,
   resumenHipoteca,
+  siguientePaso,
   tareas,
   tramos,
 } from '../src/lib/motor';
@@ -235,7 +236,7 @@ bloque('capacidad');
   igual('14 pagas se prorratean', capacidad([titular({ neto: 1_200 * E, pagas: 14 })], aj(), HOY).ingresos, 1_400 * E);
   igual('las deudas restan de la cuota', capacidad([titular({ neto: 2_000 * E, deudas: 200 * E })], aj(), HOY).cuotaMax, 500 * E);
   igual('sin nada, 0', capacidad([], aj(), HOY).precio, 0);
-  igual('el 100 % (ICO) deja pagar solo impuestos y gastos', capacidad([titular({ neto: 5_000 * E })], aj({ ahorros: 15_000 * E, financiacion: 100_000 }), HOY).precio, 208_000 * E);
+  igual('financiando el 100 % solo se pagan impuestos y gastos', capacidad([titular({ neto: 5_000 * E })], aj({ ahorros: 15_000 * E, financiacion: 100_000 }), HOY).precio, 208_000 * E);
 
   igual('plazo: edad límite', plazoMax([titular({ nacimiento: 1980 })], aj(), HOY), 29);
   igual('plazo: manda el mayor', plazoMax([titular({ nacimiento: 1995 }), titular({ nacimiento: 1970 })], aj(), HOY), 19);
@@ -268,40 +269,69 @@ bloque('papeles');
   const t = titular();
   const nominas = (dias: number[]) => dias.map((d) => archivo({ tipo: 'nomina', emision: addDias(HOY, -d) }));
   const item = (archivos: Archivo[], tipo: string, ts = [t]) =>
-    papeles(datos({ titulares: ts, archivos }), null, HOY)[0].items.find((i) => i.tipo.clave === tipo);
+    papeles(datos({ titulares: ts, archivos }), null, 1, HOY)[0]?.items.find((i) => i.tipo.clave === tipo);
+  igual(
+    'los tuyos, en orden: contrato, nóminas, renta y vida laboral',
+    papeles(datos({ titulares: [t] }), null, 1, HOY)[0].items.map((i) => i.tipo.clave),
+    ['contrato', 'nomina', 'irpf', 'vida_laboral'],
+  );
   igual('2 nóminas de 3: falta', [item(nominas([10, 40]), 'nomina')?.estado, item(nominas([10, 40]), 'nomina')?.validos], ['falta', 2]);
   igual('3 nóminas recientes: ok', item(nominas([10, 40, 70]), 'nomina')?.estado, 'ok');
   igual('una vieja: caducado', item(nominas([10, 40, 120]), 'nomina')?.estado, 'caducado');
   igual('vida laboral de hace 40 días: caducada', item([archivo({ tipo: 'vida_laboral', emision: addDias(HOY, -40) })], 'vida_laboral')?.estado, 'caducado');
   igual('sin emisión cuenta desde el alta', item([archivo({ tipo: 'vida_laboral', creado: addDias(HOY, -10) })], 'vida_laboral')?.estado, 'ok');
-  igual('el DNI no caduca', item([archivo({ emision: '2010-01-01' })], 'dni')?.estado, 'ok');
+  igual('el contrato no caduca', item([archivo({ tipo: 'contrato', emision: '2010-01-01' })], 'contrato')?.estado, 'ok');
   const auto = titular({ contrato: 'autonomo' });
-  igual('autónomo: sin nóminas y dos rentas', [item([], 'nomina', [auto]), item([], 'irpf', [auto])?.necesita], [undefined, 2]);
-  igual('préstamos solo si tienes deudas', [!!item([], 'prestamos'), !!item([], 'prestamos', [titular({ deudas: 1 })])], [false, true]);
-  igual('papeles de otro titular no cuentan', item([archivo({ personaId: 'otro' })], 'dni')?.estado, 'falta');
-  const enCompra = casa({ estado: 'arras', compra: compra() });
-  const grupos = papeles(datos({ titulares: [t], casas: [enCompra], archivos: [archivo({ tipo: 'nota_simple', personaId: null, casaId: 'c1' })] }), enCompra, HOY);
-  igual('con casa en compra: grupos de la casa', grupos.map((g) => g.grupo), ['titular', 'casa', 'hipoteca', 'despues']);
+  igual('autónomo: sin contrato ni nóminas', [item([], 'nomina', [auto]), item([], 'contrato', [auto]), item([], 'irpf', [auto])?.necesita], [undefined, undefined, 1]);
+  igual('papeles de otro titular no cuentan', item([archivo({ tipo: 'contrato', personaId: 'otro' })], 'contrato')?.estado, 'falta');
+
+  const enCompra = casa({ estado: 'oferta', compra: compra() });
+  const d = datos({ titulares: [t], casas: [enCompra], archivos: [archivo({ tipo: 'nota_simple', personaId: null, casaId: 'c1' })] });
+  const claves = (fase: number) => papeles(d, enCompra, fase, HOY).flatMap((g) => g.items.map((i) => i.tipo.clave));
+  igual('fase 2: solo los tuyos', claves(2), ['contrato', 'nomina', 'irpf', 'vida_laboral']);
+  igual('fase 3: y los de la casa', claves(3).slice(4), ['nota_simple', 'catastro', 'energetico', 'arras']);
+  igual('fase 4: y la tasación', claves(4).at(-1), 'tasacion');
+  const grupos = papeles(d, enCompra, 3, HOY);
+  igual('el grupo de la casa lleva su nombre', [grupos[1].grupo, grupos[1].titulo], ['casa', 'Piso']);
   igual('nota simple de la casa', grupos[1].items.find((i) => i.tipo.clave === 'nota_simple')?.estado, 'ok');
+  igual('sin titulares ni casa, nada', papeles(datos(), null, 6, HOY), []);
 }
 
 // ── guía ─────────────────────────────────────────────────────────────────────
 bloque('guía');
 {
-  const fase = (casas: Casa[]) => faseActual(contexto(datos({ casas }), HOY));
-  igual('sin casas: prepararte', fase([]), 1);
+  const fase = (casas: Casa[], extra: Partial<Datos> = {}) => faseActual(contexto(datos({ casas, ...extra }), HOY));
+  igual('sin nada: prepárate', fase([]), 1);
+  igual('con tus datos y ahorros: a buscar casa', fase([], { titulares: [titular({ neto: 2_000 * E })], ajustes: aj({ ahorros: 1 }) }), 2);
+  igual('sin ahorros sigues preparándote', fase([], { titulares: [titular({ neto: 2_000 * E })] }), 1);
   igual('con casas: buscar', fase([casa()]), 2);
   igual('descartadas no cuentan', fase([casa({ estado: 'descartada' })]), 1);
-  igual('oferta', fase([casa({ estado: 'oferta' })]), 3);
+  igual('elegida: resérvala', fase([casa({ estado: 'oferta' })]), 3);
   igual('arras sin FEIN: hipoteca', fase([casa({ estado: 'arras', compra: compra() })]), 4);
   igual('arras con FEIN y banco: firmar', fase([casa({ estado: 'arras', compra: compra({ fein: HOY, hipotecaId: 'h' }) })]), 5);
-  igual('comprada: después', fase([casa({ estado: 'comprada', compra: compra() })]), 6);
+  igual('comprada: ya es tuya', fase([casa({ estado: 'comprada', compra: compra() })]), 6);
   igual(
     'casa en compra: la más avanzada',
     casaEnCompra([casa({ id: 'a', estado: 'oferta' }), casa({ id: 'b', estado: 'arras' }), casa({ id: 'c', estado: 'finalista' })])?.id,
     'b',
   );
-  igual('sin oferta no hay casa en compra', casaEnCompra([casa({ estado: 'finalista' })]), null);
+  igual('sin elegir no hay casa en compra', casaEnCompra([casa({ estado: 'finalista' })]), null);
+
+  const paso = (d: Datos) => {
+    const x = contexto(d, HOY);
+    return siguientePaso(x, faseActual(x))?.accion ?? null;
+  };
+  igual('siguiente paso en cada fase', [
+    paso(datos()),
+    paso(datos({ titulares: [titular({ neto: 1 })] })),
+    paso(datos({ titulares: [titular({ neto: 1 })], ajustes: aj({ ahorros: 1 }) })),
+    paso(datos({ casas: [casa()] })),
+    paso(datos({ casas: [casa({ estado: 'oferta', compra: compra() })] })),
+    paso(datos({ casas: [casa({ estado: 'arras', compra: compra() })] })),
+    paso(datos({ casas: [casa({ estado: 'arras', compra: compra() })], hipotecas: [hip()] })),
+    paso(datos({ casas: [casa({ estado: 'arras', compra: compra({ fein: HOY, hipotecaId: 'h1' }) })], hipotecas: [hip()] })),
+    paso(datos({ casas: [casa({ estado: 'comprada', compra: compra() })] })),
+  ], ['titular', 'ahorros', 'nueva', 'elegir', 'arras', 'ofertas', 'compra', 'comprada', null]);
 
   const estado = (d: Datos, clave: string) => tareas(contexto(d, HOY)).find((t) => t.tarea.clave === clave);
   igual('tarea derivada de los datos', [estado(datos({ ajustes: aj({ ccaa: null }) }), 'comunidad')?.estado, estado(datos(), 'comunidad')?.estado], [
@@ -309,7 +339,7 @@ bloque('guía');
     'hecha',
   ]);
   igual('marca manual', estado(datos({ marcas: { deudas: 'hecho' } }), 'deudas')?.estado, 'hecha');
-  igual('no aplica', estado(datos({ marcas: { vpo: 'no-aplica' } }), 'vpo')?.estado, 'no-aplica');
+  igual('no aplica', estado(datos({ marcas: { quien_paga: 'no-aplica' } }), 'quien_paga')?.estado, 'no-aplica');
   igual('obra nueva: solo si la casa es nueva', [
     !!estado(datos({ casas: [casa({ estado: 'oferta' })] }), 'decenal'),
     !!estado(datos({ casas: [casa({ estado: 'oferta', nueva: true })] }), 'decenal'),
@@ -318,7 +348,13 @@ bloque('guía');
     estado(datos({ casas: [casa({ estado: 'arras', compra: compra({ acta: addDias(HOY, 3) }) })] }), 'acta')?.estado,
     estado(datos({ casas: [casa({ estado: 'arras', compra: compra({ acta: HOY }) })] }), 'acta')?.estado,
   ], ['pendiente', 'hecha']);
-  igual('papeles de los titulares completos', estado(datos({ titulares: [titular({ contrato: 'autonomo' })] }), 'papeles')?.estado, 'pendiente');
+  igual('arras hechas al pasar a arras', estado(datos({ casas: [casa({ estado: 'arras', compra: compra() })] }), 'arras')?.estado, 'hecha');
+  igual(
+    'nota simple de la casa elegida: hecha',
+    estado(datos({ casas: [casa({ estado: 'oferta', compra: compra() })], archivos: [archivo({ tipo: 'nota_simple', personaId: null, casaId: 'c1' })] }), 'nota_simple')?.estado,
+    'hecha',
+  );
+  igual('papeles de los titulares sin enlazar: pendiente', estado(datos({ titulares: [titular({ contrato: 'autonomo' })] }), 'papeles')?.estado, 'pendiente');
 }
 
 // ── próximos y avisos ────────────────────────────────────────────────────────
@@ -326,7 +362,7 @@ bloque('próximos y avisos');
 {
   const textos = (d: Datos) => {
     const x = contexto(d, HOY);
-    const g = papeles(d, x.compra, HOY);
+    const g = papeles(d, x.compra, faseActual(x), HOY);
     return { proximos: proximos(x, g).map((p) => `${p.fecha} ${p.texto}`), avisos: avisos(x, g).map((a) => `${a.tono}: ${a.texto}`) };
   };
   const visitas = textos(datos({ casas: [casa({ visitas: [{ fecha: addDias(HOY, -1), hora: '' }, { fecha: addDias(HOY, 2), hora: '18:00' }] })] }));
@@ -341,11 +377,10 @@ bloque('próximos y avisos');
   ok('arras sin condición de financiación: aviso', textos(datos({ casas: [casa({ estado: 'arras', compra: compra({ fechaArras: HOY }) })] })).avisos.some((a) => a.includes('condición de financiación')));
   ok('tasación baja: aviso', textos(datos({ casas: [casa({ estado: 'arras', compra: compra({ tasacion: 180_000 * E }) })] })).avisos.some((a) => a.includes('20.000 € por debajo')));
 
-  const firmada = (firma: string, archivos: Archivo[] = []) =>
-    textos(datos({ casas: [casa({ estado: 'comprada', compra: compra({ firma }) })], archivos }));
+  const firmada = (firma: string, marcas: Datos['marcas'] = {}) => textos(datos({ casas: [casa({ estado: 'comprada', compra: compra({ firma }) })], marcas }));
   ok('tras firmar: plazo del impuesto en 28 días', firmada('2026-10-10').proximos.includes('2026-11-07 Pagar el impuesto (modelo 600)'));
   ok('impuesto vencido: peligro', firmada('2026-09-01').avisos.some((a) => a.startsWith('peligro: Han pasado 4 semanas')));
-  igual('con el modelo 600 enlazado, nada', firmada('2026-09-01', [archivo({ tipo: 'modelo_600', personaId: null, casaId: 'c1' })]).avisos, []);
+  igual('con el impuesto marcado como pagado, nada', firmada('2026-09-01', { impuesto: 'hecho' }).avisos, []);
   ok('firma pasada y sin marcar como tuya: aviso', textos(datos({ casas: [casa({ estado: 'arras', compra: compra({ firma: '2026-10-01' }) })] })).avisos.some((a) => a.includes('marca la casa como tuya')));
   ok('sin comunidad: aviso', textos(datos({ ajustes: aj({ ccaa: null }) })).avisos[0].includes('comunidad autónoma'));
   ok(

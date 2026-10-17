@@ -1,11 +1,12 @@
-// Los papeles que pedirá el banco: de cada titular y de la casa que compras. Los
+// Los papeles, por fases. Arriba lo que toca ahora (o lo que aún falta de antes); lo
+// que ya tienes de fases anteriores se pliega, y lo de fases futuras aún no sale. Los
 // archivos se quedan donde estén (Descargas, Drive, galería); aquí solo se enlazan.
 
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Ayuda, Boton, Fila, Icono, Nota, Pantalla, Progreso, Seccion, Vacio } from '@/components/ui';
+import { Ayuda, Boton, Fila, Icono, Nota, Pantalla, Seccion, Vacio } from '@/components/ui';
 import { useGuia, useHoy } from '@/hooks';
 import { elegir } from '@/lib/archivos';
 import { nombreTipo } from '@/lib/catalogo';
@@ -14,32 +15,67 @@ import { caducaEl, type GrupoPapeles, type ItemDoc } from '@/lib/motor';
 import { avisar, enlazar, useApp } from '@/store/app';
 import { BORDE, color, espacio, TACTIL, typo } from '@/theme';
 
+/** Lo que viene en la fase siguiente, para que no pille por sorpresa. */
+const PROXIMOS: Record<number, string> = {
+  1: 'Cuando elijas casa aparecerán sus papeles: nota simple, catastro, certificado energético y arras.',
+  2: 'Cuando elijas casa aparecerán sus papeles: nota simple, catastro, certificado energético y arras.',
+  3: 'Con la hipoteca llegará la tasación.',
+};
+
 export default function PantallaPapeles() {
-  const { grupos, x } = useGuia();
+  const { grupos, fase } = useGuia();
   const archivos = useApp((s) => s.archivos);
   const otros = useMemo(() => archivos.filter((a) => a.tipo === 'otro' && !a.casaId), [archivos]);
   const [abierto, setAbierto] = useState<string | null>(null);
+  const [verHechos, setVerHechos] = useState(false);
+
+  // Ahora: lo de esta fase y lo que falte de antes. Hechos: lo de antes que ya está.
+  const hecho = (i: ItemDoc) => i.estado === 'ok' && i.tipo.fase < fase;
+  const ahora = grupos.map((g) => ({ ...g, items: g.items.filter((i) => !hecho(i)) })).filter((g) => g.items.length);
+  const hechos = grupos.map((g) => ({ ...g, items: g.items.filter(hecho) })).filter((g) => g.items.length);
+  const nHechos = hechos.reduce((n, g) => n + g.items.length, 0);
 
   const enlazarOtro = async () => {
     const nuevos = enlazar(await elegir(), { tipo: 'otro', personaId: null, casaId: null });
     if (nuevos[0]) router.push({ pathname: '/documento', params: { id: nuevos[0].id } });
   };
 
-  if (!x.d.titulares.length) {
+  if (!grupos.length) {
     return (
       <Pantalla titulo="Papeles">
-        <Vacio texto="Di quién compra y aquí verás los papeles que os pedirá el banco a cada uno." cta="Añadir titular" onPress={() => router.push('/titular')} />
+        <Vacio texto="Di quién compra y aquí irán saliendo los papeles que os pedirá el banco, fase a fase." cta="Añadir titular" onPress={() => router.push('/titular')} />
       </Pantalla>
     );
   }
 
+  const lista = (gs: GrupoPapeles[]) =>
+    gs.map((g) => (
+      <Seccion key={g.clave} titulo={g.titulo}>
+        {g.items.map((i) => {
+          const clave = `${g.clave}:${i.tipo.clave}`;
+          return <Item key={clave} i={i} g={g} abierto={abierto === clave} onAbrir={() => setAbierto(abierto === clave ? null : clave)} />;
+        })}
+      </Seccion>
+    ));
+
   return (
     <Pantalla titulo="Papeles">
-      <Nota icono="lock" texto="Los archivos se quedan donde están; la app solo guarda el enlace, cifrado. Si mueves o borras uno, vuelve a enlazarlo." />
-      {grupos.map((g) => (
-        <Grupo key={g.clave} g={g} abierto={abierto} setAbierto={setAbierto} />
-      ))}
-      {!x.compra && <Ayuda>Cuando hagas una oferta por una casa, aquí aparecerán sus papeles: nota simple, arras, tasación, FEIN…</Ayuda>}
+      {ahora.length ? lista(ahora) : <Nota tono="bien" texto="Tienes todos los papeles de esta fase." />}
+      {PROXIMOS[fase] && <Ayuda>{PROXIMOS[fase]}</Ayuda>}
+
+      {nHechos > 0 && (
+        <Seccion>
+          <Boton
+            texto={`Ya los tienes (${nHechos})`}
+            variante="texto"
+            icono={verHechos ? 'chevron-up' : 'chevron-down'}
+            onPress={() => setVerHechos(!verHechos)}
+            style={{ alignSelf: 'flex-start' }}
+          />
+          {verHechos && lista(hechos)}
+        </Seccion>
+      )}
+
       <Seccion titulo="Otros documentos" derecha={<Boton texto="Enlazar" variante="texto" icono="link" onPress={() => void enlazarOtro()} />}>
         {otros.map((a) => (
           <Fila
@@ -52,20 +88,8 @@ export default function PantallaPapeles() {
           />
         ))}
       </Seccion>
+      <Nota icono="lock" texto="Los archivos se quedan donde están; la app solo guarda el enlace, cifrado. Si mueves o borras uno, vuelve a enlazarlo." />
     </Pantalla>
-  );
-}
-
-function Grupo({ g, abierto, setAbierto }: { g: GrupoPapeles; abierto: string | null; setAbierto: (k: string | null) => void }) {
-  const listos = g.items.filter((i) => i.estado === 'ok').length;
-  return (
-    <Seccion titulo={g.titulo} derecha={<Text style={[typo.micro, { color: color.texto2 }]}>{`${listos} de ${g.items.length}`}</Text>}>
-      <Progreso hecho={listos} total={g.items.length} />
-      {g.items.map((i) => {
-        const clave = `${g.clave}:${i.tipo.clave}`;
-        return <Item key={clave} i={i} g={g} abierto={abierto === clave} onAbrir={() => setAbierto(abierto === clave ? null : clave)} />;
-      })}
-    </Seccion>
   );
 }
 
@@ -73,7 +97,7 @@ function Item({ i, g, abierto, onAbrir }: { i: ItemDoc; g: GrupoPapeles; abierto
   const hoy = useHoy();
   const estado =
     i.estado === 'ok'
-      ? { icono: 'check-circle', tinte: color.verde, texto: 'Al día' }
+      ? { icono: 'check-circle', tinte: color.verde, texto: 'Lo tienes' }
       : i.estado === 'caducado'
         ? { icono: 'alert-circle', tinte: color.ocre, texto: 'Caducado: pide uno nuevo' }
         : { icono: 'circle', tinte: color.texto3, texto: i.validos ? `Tienes ${i.validos} de ${i.necesita}` : 'Falta' };

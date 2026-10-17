@@ -26,13 +26,13 @@ import {
   SelectorFecha,
   Vacio,
 } from '@/components/ui';
-import { useCasa, useDatos, useHipotecas, useHoy, useNumeros } from '@/hooks';
+import { useCasa, useDatos, useGuia, useHipotecas, useHoy, useNumeros } from '@/hooks';
 import { compartir, elegir } from '@/lib/archivos';
 import { CARACTERISTICAS, comunidad, ENERGIAS, ESTADOS, nombreTipo, RATIO_ENDEUDAMIENTO, REVISIONES } from '@/lib/catalogo';
 import { euros, eurosRedondos, pct } from '@/lib/dinero';
 import { fechaCorta, relativa } from '@/lib/fechas';
 import { firmaMinima } from '@/lib/motor';
-import { avisar, avisoArchivo, borrarCasa, cambiarEstado, desenlazar, enlazar, guardarCasa, useApp } from '@/store/app';
+import { avisar, avisoArchivo, borrarCasa, cambiarEstado, desenlazar, enlazar, firmarArras, guardarCasa, useApp } from '@/store/app';
 import { BORDE, color, espacio, RADIO, TACTIL, typo } from '@/theme';
 import type { Archivo, Casa, Compra, TipoArras } from '@/types';
 
@@ -42,6 +42,7 @@ const MAX_FOTOS = 12;
 export default function FichaCasa() {
   const { id, parte: inicial } = useLocalSearchParams<{ id: string; parte?: Parte }>();
   const casa = useCasa(id);
+  const enCompra = useGuia().x.compra;
   const [parte, setParte] = useState<Parte>(inicial ?? 'resumen');
   if (!casa) {
     return (
@@ -52,6 +53,8 @@ export default function FichaCasa() {
   }
   const conCompra = !!casa.compra && casa.estado !== 'interesa' && casa.estado !== 'finalista' && casa.estado !== 'descartada';
   const vista = parte === 'compra' && !conCompra ? 'resumen' : parte;
+  // Mientras no hayas elegido ninguna, cualquier candidata se puede elegir desde aquí.
+  const elegible = !enCompra && (casa.estado === 'interesa' || casa.estado === 'finalista');
 
   return (
     <Pantalla
@@ -83,6 +86,24 @@ export default function FichaCasa() {
           <Chip key={e.valor} texto={e.texto} activo={casa.estado === e.valor} onPress={() => cambiarEstado(casa, e.valor)} />
         ))}
       </Chips>
+      {elegible && (
+        <Boton
+          texto="Esta es la casa"
+          icono="check"
+          onPress={() =>
+            Alert.alert('Elegir casa', `¿Vas a por "${casa.nombre}"? Aparecerán los pasos y papeles para reservarla.`, [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Esta es',
+                onPress: () => {
+                  cambiarEstado(casa, 'oferta');
+                  setParte('compra');
+                },
+              },
+            ])
+          }
+        />
+      )}
       <Segmentado<Parte>
         opciones={[
           { valor: 'resumen', texto: 'Resumen' },
@@ -464,6 +485,18 @@ function ParteCompra({ casa }: { casa: Casa }) {
         />
         <SelectorFecha etiqueta="Firma de las arras" valor={k.fechaArras} onCambio={(fechaArras) => guardarCompra({ fechaArras })} opcional />
         <SelectorFecha etiqueta="Fecha límite para escriturar" valor={k.fechaLimite} onCambio={(fechaLimite) => guardarCompra({ fechaLimite })} opcional />
+        {casa.estado === 'oferta' && (
+          <Boton
+            texto="Ya he firmado las arras"
+            icono="arrow-right"
+            onPress={() =>
+              Alert.alert('Arras firmadas', 'Pasarás a conseguir la hipoteca.', [
+                { text: 'Todavía no', style: 'cancel' },
+                { text: 'Sí', onPress: () => firmarArras(casa) },
+              ])
+            }
+          />
+        )}
       </Seccion>
 
       <Seccion titulo="Hipoteca">

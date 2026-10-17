@@ -8,7 +8,6 @@
 import {
   comunidad,
   EDAD_LIMITE,
-  GRUPOS,
   RATIO_ENDEUDAMIENTO,
   TAREAS,
   TIPOS_DOC,
@@ -327,38 +326,35 @@ function item(tipo: TipoDoc, archivos: Archivo[], necesita: number, hoy: string)
   return { tipo, necesita, validos, archivos, estado: validos >= necesita ? 'ok' : archivos.length > validos ? 'caducado' : 'falta' };
 }
 
-/** Lo que pide el banco: de cada titular y, si hay casa en compra, de la casa. */
-export function papeles(d: Datos, compra: Casa | null, hoy: string): GrupoPapeles[] {
+/**
+ * Lo que pide el banco: de cada titular y, si hay casa elegida, de la casa. Solo los
+ * documentos que ya tocan en esta fase: los demás aparecen al llegar a la suya.
+ */
+export function papeles(d: Datos, compra: Casa | null, fase: number, hoy: string): GrupoPapeles[] {
+  const tocan = TIPOS_DOC.filter((x) => x.fase <= fase);
   const grupos: GrupoPapeles[] = d.titulares.map((t) => ({
     clave: t.id,
     titulo: t.nombre || 'Titular',
     grupo: 'titular',
     personaId: t.id,
     casaId: null,
-    items: TIPOS_DOC.filter((x) => x.grupo === 'titular' && (x.aplica?.(t) ?? true)).map((x) =>
-      item(
-        x,
-        d.archivos.filter((a) => a.tipo === x.clave && a.personaId === t.id),
-        (t.contrato === 'autonomo' && x.cantidadAutonomo) || x.cantidad || 1,
-        hoy,
-      ),
-    ),
+    items: tocan
+      .filter((x) => x.grupo === 'titular' && (x.aplica?.(t) ?? true))
+      .map((x) => item(x, d.archivos.filter((a) => a.tipo === x.clave && a.personaId === t.id), x.cantidad ?? 1, hoy)),
   }));
   if (compra) {
-    for (const g of ['casa', 'hipoteca', 'despues'] as const) {
-      grupos.push({
-        clave: g,
-        titulo: GRUPOS[g],
-        grupo: g,
-        personaId: null,
-        casaId: compra.id,
-        items: TIPOS_DOC.filter((x) => x.grupo === g).map((x) =>
-          item(x, d.archivos.filter((a) => a.tipo === x.clave && a.casaId === compra.id), x.cantidad ?? 1, hoy),
-        ),
-      });
-    }
+    grupos.push({
+      clave: compra.id,
+      titulo: compra.nombre,
+      grupo: 'casa',
+      personaId: null,
+      casaId: compra.id,
+      items: tocan
+        .filter((x) => x.grupo === 'casa')
+        .map((x) => item(x, d.archivos.filter((a) => a.tipo === x.clave && a.casaId === compra.id), x.cantidad ?? 1, hoy)),
+    });
   }
-  return grupos;
+  return grupos.filter((g) => g.items.length > 0);
 }
 
 // ── Guía: contexto, fase y tareas ────────────────────────────────────────────
@@ -377,9 +373,11 @@ export function casaEnCompra(casas: Casa[]): Casa | null {
   return mejor;
 }
 
-export function contexto(d: Datos, hoy: string, grupos = papeles(d, casaEnCompra(d.casas), hoy)): Contexto {
+export function contexto(d: Datos, hoy: string): Contexto {
   const compra = casaEnCompra(d.casas);
-  const deCasa = new Set(TIPOS_DOC.filter((t) => t.grupo !== 'titular').map((t) => t.clave));
+  const deCasa = new Set(TIPOS_DOC.filter((t) => t.grupo === 'casa').map((t) => t.clave));
+  // Los papeles de los titulares son de la fase 1: no dependen de en cuál estés.
+  const grupos = papeles(d, null, 1, hoy);
   return {
     d,
     compra,
@@ -390,14 +388,42 @@ export function contexto(d: Datos, hoy: string, grupos = papeles(d, casaEnCompra
   };
 }
 
-/** Del 1 al 6, según lo más avanzado que tengas: sirve empieces donde empieces. */
+const conPerfil = (d: Datos) => d.titulares.some((t) => t.neto > 0) && d.ajustes.ahorros > 0;
+const conCasas = (d: Datos) => d.casas.some((k) => k.estado !== 'descartada');
+
+/**
+ * Del 1 al 6, según lo más avanzado que tengas: sirve empieces donde empieces. Cada fase
+ * se cierra con un hito: tus datos (1), elegir casa (2), firmar las arras (3), FEIN y
+ * banco (4), firmar en la notaría (5).
+ */
 export function faseActual(x: Contexto): number {
   const c = x.compra;
   if (c?.estado === 'comprada') return 6;
   if (c?.estado === 'arras') return c.compra?.fein && c.compra.hipotecaId ? 5 : 4;
   if (c?.estado === 'oferta') return 3;
-  if (x.d.casas.some((k) => k.estado !== 'descartada')) return 2;
+  if (conCasas(x.d) || conPerfil(x.d)) return 2;
   return 1;
+}
+
+export type Paso = {
+  texto: string;
+  accion: 'titular' | 'ahorros' | 'nueva' | 'elegir' | 'arras' | 'ofertas' | 'compra' | 'comprada';
+};
+
+/** El botón grande de cada fase: lo que te lleva a la siguiente. */
+export function siguientePaso(x: Contexto, fase: number): Paso | null {
+  const k = x.compra?.compra;
+  if (fase === 1) {
+    return x.d.titulares.some((t) => t.neto > 0) ? { texto: 'Apunta tus ahorros', accion: 'ahorros' } : { texto: 'Di quién compra y cuánto gana', accion: 'titular' };
+  }
+  if (fase === 2) return conCasas(x.d) ? { texto: 'Ya he elegido casa', accion: 'elegir' } : { texto: 'Apunta la primera casa', accion: 'nueva' };
+  if (fase === 3) return { texto: 'Ya he firmado las arras', accion: 'arras' };
+  if (fase === 4) {
+    if (!x.d.hipotecas.some((h) => !h.descartada)) return { texto: 'Apunta las ofertas de los bancos', accion: 'ofertas' };
+    return { texto: k?.fein ? 'Elige banco' : 'Pon la fecha de la FEIN', accion: 'compra' };
+  }
+  if (fase === 5) return { texto: 'Ya he firmado: es mía', accion: 'comprada' };
+  return null;
 }
 
 export type EstadoTarea = { tarea: Tarea; estado: 'hecha' | 'pendiente' | 'no-aplica'; auto: boolean };
@@ -419,7 +445,7 @@ export const firmaMinima = (fein: string, dias: number): string => addDias(fein,
 /** Pagando el impuesto en 28 días naturales se cumple "1 mes" y "30 días hábiles". */
 export const DIAS_IMPUESTO = 28;
 
-const impuestoPendiente = (x: Contexto) => !x.tiene('modelo_600') && x.d.marcas.impuesto !== 'hecho';
+const impuestoPendiente = (x: Contexto) => x.d.marcas.impuesto !== 'hecho';
 
 export type Proximo = { fecha: string; texto: string; detalle?: string; casaId?: Id; papeles?: boolean };
 
@@ -490,7 +516,7 @@ export function avisos(x: Contexto, grupos: GrupoPapeles[]): Aviso[] {
     if (casa.estado === 'arras' && k.firma && k.firma < hoy) out.push({ tono: 'aviso', ir: 'compra', texto: 'Si ya has firmado, marca la casa como tuya y verás lo que toca después.' });
   }
   if (k?.firma && addDias(k.firma, DIAS_IMPUESTO) < hoy && impuestoPendiente(x)) {
-    out.push({ tono: 'peligro', ir: '/papeles', texto: 'Han pasado 4 semanas desde la firma y no consta el pago del impuesto: revisa el plazo de tu comunidad.' });
+    out.push({ tono: 'peligro', texto: 'Han pasado 4 semanas desde la firma: si ya has pagado el impuesto, márcalo como hecho; si no, revisa el plazo de tu comunidad.' });
   }
   const caducados = grupos.flatMap((g) => g.items).filter((i) => i.estado === 'caducado').length;
   if (caducados) out.push({ tono: 'aviso', ir: '/papeles', texto: caducados === 1 ? 'Tienes un documento caducado.' : `Tienes ${caducados} documentos caducados.` });

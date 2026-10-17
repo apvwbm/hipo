@@ -93,65 +93,40 @@ export const comunidad = (clave: string | null): Comunidad =>
   COMUNIDADES.find((x) => x.clave === clave) ?? COMUNIDAD_ESTIMADA;
 
 // ── Documentos ───────────────────────────────────────────────────────────────
+// Solo lo que de verdad hace falta, en el orden en que llega: primero lo que ya tienes
+// (fase 1), luego lo de la casa elegida (fase 3) y la tasación con la hipoteca (fase 4).
+// Papeles solo enseña los de la fase en que estás o anteriores.
 
 /** De quién es: de cada titular, o de la casa que estás comprando. */
-export type GrupoDoc = 'titular' | 'casa' | 'hipoteca' | 'despues';
+export type GrupoDoc = 'titular' | 'casa';
 
 export type TipoDoc = {
   clave: string;
   nombre: string;
   grupo: GrupoDoc;
+  /** Fase en la que aparece. */
+  fase: number;
   /** Cuántos hacen falta (las 3 últimas nóminas). */
   cantidad?: number;
   /** Días que vale desde su emisión. */
   vigencia?: number;
   aplica?: (t: Titular) => boolean;
-  /** Para autónomos, si pide otra cantidad. */
-  cantidadAutonomo?: number;
   ayuda?: string;
 };
 
 const asalariado = (t: Titular) => t.contrato !== 'autonomo';
-const autonomo = (t: Titular) => t.contrato === 'autonomo';
-
-export const GRUPOS: Record<GrupoDoc, string> = {
-  titular: 'Tuyos',
-  casa: 'De la casa',
-  hipoteca: 'De la hipoteca',
-  despues: 'Después de firmar',
-};
 
 export const TIPOS_DOC: TipoDoc[] = [
-  { clave: 'dni', nombre: 'DNI o NIE', grupo: 'titular', ayuda: 'Por las dos caras y en vigor.' },
-  { clave: 'nomina', nombre: 'Nóminas', grupo: 'titular', cantidad: 3, vigencia: 95, aplica: asalariado, ayuda: 'Las 3 últimas (6 si has cambiado de trabajo hace poco).' },
-  { clave: 'contrato', nombre: 'Contrato de trabajo', grupo: 'titular', aplica: asalariado },
-  { clave: 'vida_laboral', nombre: 'Vida laboral', grupo: 'titular', vigencia: 30, ayuda: 'Se descarga gratis en la Seguridad Social; la quieren de hace menos de un mes.' },
-  { clave: 'irpf', nombre: 'Declaración de la renta', grupo: 'titular', cantidad: 1, cantidadAutonomo: 2, ayuda: 'La última (las dos últimas si eres autónomo).' },
-  { clave: 'extractos', nombre: 'Extractos del banco', grupo: 'titular', vigencia: 30, ayuda: 'Movimientos de los últimos 3 a 6 meses.' },
-  { clave: 'prestamos', nombre: 'Recibos de otros préstamos', grupo: 'titular', aplica: (t) => t.deudas > 0 },
-  { clave: 'cirbe', nombre: 'Informe CIRBE', grupo: 'titular', vigencia: 30, ayuda: 'Gratis en el Banco de España: tus deudas tal como las ve el banco.' },
-  { clave: 'trimestrales', nombre: 'Modelos 130 y 303', grupo: 'titular', aplica: autonomo, ayuda: 'Los últimos 4 trimestres.' },
-  { clave: 'modelo_390', nombre: 'Resumen anual de IVA (390)', grupo: 'titular', aplica: autonomo },
-  { clave: 'reta', nombre: 'Recibos de autónomo', grupo: 'titular', aplica: autonomo },
+  { clave: 'contrato', nombre: 'Contrato de trabajo', grupo: 'titular', fase: 1, aplica: asalariado },
+  { clave: 'nomina', nombre: 'Nóminas', grupo: 'titular', fase: 1, cantidad: 3, vigencia: 95, aplica: asalariado, ayuda: 'Las 3 últimas.' },
+  { clave: 'irpf', nombre: 'Última declaración de la renta', grupo: 'titular', fase: 1, ayuda: 'La descargas en la web de la Agencia Tributaria.' },
+  { clave: 'vida_laboral', nombre: 'Vida laboral', grupo: 'titular', fase: 1, vigencia: 30, ayuda: 'Gratis en la web de la Seguridad Social. La quieren de hace menos de un mes: descárgala de nuevo cuando vayas al banco.' },
 
-  { clave: 'nota_simple', nombre: 'Nota simple', grupo: 'casa', vigencia: 90, ayuda: 'En registradores.org por unos 9 €. Dueño, cargas y embargos. El banco la quiere reciente.' },
-  { clave: 'arras', nombre: 'Contrato de arras', grupo: 'casa' },
-  { clave: 'energetico', nombre: 'Certificado energético', grupo: 'casa', vigencia: 3650 },
-  { clave: 'ibi', nombre: 'Último recibo del IBI', grupo: 'casa' },
-  { clave: 'comunidad', nombre: 'Certificado de deudas de la comunidad', grupo: 'casa', vigencia: 30, ayuda: 'Lo da el administrador en 7 días. Sin él respondes de las deudas de este año y el anterior.' },
-  { clave: 'escritura_vendedor', nombre: 'Escritura del vendedor', grupo: 'casa' },
-  { clave: 'cedula', nombre: 'Cédula o licencia de ocupación', grupo: 'casa', ayuda: 'Según la comunidad: cédula de habitabilidad o licencia de primera ocupación.' },
-  { clave: 'ite', nombre: 'ITE / IEE del edificio', grupo: 'casa' },
-
-  { clave: 'tasacion', nombre: 'Tasación', grupo: 'hipoteca', vigencia: 180, ayuda: 'Vale 6 meses.' },
-  { clave: 'fein', nombre: 'FEIN', grupo: 'hipoteca', ayuda: 'Ficha Europea de Información Normalizada: la oferta vinculante del banco.' },
-  { clave: 'fiae', nombre: 'FiAE', grupo: 'hipoteca', ayuda: 'Ficha de Advertencias Estandarizadas: cláusulas e índices.' },
-  { clave: 'acta', nombre: 'Acta de transparencia', grupo: 'hipoteca' },
-  { clave: 'seguros', nombre: 'Pólizas de seguros', grupo: 'hipoteca' },
-
-  { clave: 'escritura', nombre: 'Escritura de compraventa e hipoteca', grupo: 'despues' },
-  { clave: 'modelo_600', nombre: 'Pago del impuesto (modelo 600)', grupo: 'despues' },
-  { clave: 'facturas', nombre: 'Facturas de notaría, registro y gestoría', grupo: 'despues', ayuda: 'Guárdalas: suman al valor de compra y pagarás menos cuando vendas.' },
+  { clave: 'nota_simple', nombre: 'Nota simple', grupo: 'casa', fase: 3, vigencia: 90, ayuda: 'En registradores.org por unos 9 €: quién es el dueño y si tiene hipoteca, cargas o embargos. Pídela antes de firmar las arras.' },
+  { clave: 'catastro', nombre: 'Catastro', grupo: 'casa', fase: 3, ayuda: 'Consulta gratis en la Sede del Catastro: metros, año y valor de referencia. Compara los metros con los de la nota simple.' },
+  { clave: 'energetico', nombre: 'Certificado energético', grupo: 'casa', fase: 3, vigencia: 3650, ayuda: 'Te lo tiene que dar el vendedor.' },
+  { clave: 'arras', nombre: 'Contrato de arras', grupo: 'casa', fase: 3 },
+  { clave: 'tasacion', nombre: 'Tasación', grupo: 'casa', fase: 4, vigencia: 180, ayuda: 'La encarga el banco y la pagas tú. Vale 6 meses.' },
 ];
 
 export const tipoDoc = (clave: string): TipoDoc | undefined => TIPOS_DOC.find((t) => t.clave === clave);
@@ -171,7 +146,7 @@ export const CONTRATOS: { valor: Contrato; texto: string }[] = [
 export const ESTADOS: { valor: Casa['estado']; texto: string }[] = [
   { valor: 'interesa', texto: 'Me interesa' },
   { valor: 'finalista', texto: 'Finalista' },
-  { valor: 'oferta', texto: 'Oferta' },
+  { valor: 'oferta', texto: 'Elegida' },
   { valor: 'arras', texto: 'Arras' },
   { valor: 'comprada', texto: 'Comprada' },
   { valor: 'descartada', texto: 'Descartada' },
@@ -233,97 +208,99 @@ export type Tarea = {
   aplica?: (x: Contexto) => boolean;
 };
 
-export const FASES = ['Prepararte', 'Buscar y visitar', 'Ofertar y reservar', 'Conseguir la hipoteca', 'Firmar', 'Después de firmar'];
+export const FASES = ['Prepárate', 'Busca casa', 'Resérvala', 'Consigue la hipoteca', 'Firma', 'Ya es tuya'];
 
 const deCompra = (x: Contexto) => x.compra?.compra ?? null;
 const vivo = (casa: Casa) => casa.estado !== 'descartada';
 
 export const TAREAS: Tarea[] = [
-  // 1 · Prepararte
-  { clave: 'titulares', fase: 1, texto: 'Di quién compra y cuánto ingresa', ir: '/hipoteca', hecha: (x) => x.d.titulares.some((t) => t.neto > 0) },
+  // 1 · Prepárate
+  { clave: 'titulares', fase: 1, texto: 'Di quién compra y cuánto gana', ir: '/hipoteca', hecha: (x) => x.d.titulares.some((t) => t.neto > 0) },
   {
     clave: 'ahorros', fase: 1, texto: 'Apunta tus ahorros', ir: '/hipoteca', hecha: (x) => x.d.ajustes.ahorros > 0,
     ayuda: 'Hace falta en torno al 30 % del precio: 20 % de entrada y un 10–12 % de impuestos y gastos. Deja aparte un colchón para imprevistos.',
   },
   { clave: 'comunidad', fase: 1, texto: 'Elige tu comunidad autónoma', ir: '/ajustes', hecha: (x) => x.d.ajustes.ccaa !== null, ayuda: 'El impuesto de la compra depende de ella.' },
   {
-    clave: 'deudas', fase: 1, texto: 'Revisa tus deudas y pide el informe CIRBE',
-    ayuda: 'Es gratis en la web del Banco de España y es lo que verá el banco. Cancelar préstamos pequeños mejora lo que te prestan.',
+    clave: 'papeles', fase: 1, texto: 'Reúne tus papeles', ir: '/papeles', hecha: (x) => x.papelesTitulares,
+    ayuda: 'Contrato, nóminas, renta y vida laboral. El banco te los pedirá; así los tienes a mano.',
   },
-  { clave: 'preaprobacion', fase: 1, texto: 'Pregunta a tu banco cuánto te prestaría', ayuda: 'Opcional, pero te da una idea real antes de buscar.' },
+  {
+    clave: 'deudas', fase: 1, texto: 'Revisa tus deudas en la CIRBE (opcional)',
+    ayuda: 'La CIRBE es el registro del Banco de España con los préstamos y avales a tu nombre. El banco la mira él mismo; pedirla tú (gratis, en la web del Banco de España con Cl@ve o certificado) sirve para ver lo mismo que él y cazar errores o deudas olvidadas antes. Cancelar préstamos pequeños mejora lo que te prestan.',
+  },
 
-  // 2 · Buscar y visitar
+  // 2 · Busca casa
   { clave: 'apuntar', fase: 2, texto: 'Apunta las casas que te interesen', ir: '/casas', hecha: (x) => x.d.casas.length > 0 },
   {
-    clave: 'visitar', fase: 2, texto: 'Visita con la lista de comprobación', ir: '/casas',
+    clave: 'visitar', fase: 2, texto: 'Visítalas con la lista de comprobación', ir: '/casas',
     hecha: (x) => x.d.casas.some((c) => c.visitas.some((v) => v.fecha <= x.hoy)),
   },
   {
-    clave: 'finalistas', fase: 2, texto: 'Elige finalistas y compáralas', ir: '/casas',
+    clave: 'finalistas', fase: 2, texto: 'Quédate con tus finalistas', ir: '/casas',
     hecha: (x) => x.d.casas.some((c) => vivo(c) && c.estado !== 'interesa'),
     ayuda: 'Ordena la lista por coste total o por cuota: el precio solo no cuenta toda la historia.',
   },
   {
-    clave: 'nota_previa', fase: 2, texto: 'Pide la nota simple de la que te guste', ir: '/papeles',
-    hecha: (x) => x.d.archivos.some((a) => a.tipo === 'nota_simple'),
-    ayuda: 'En registradores.org por unos 9 €: quién es el dueño y si tiene hipoteca, cargas o embargos. Antes de ofertar.',
+    clave: 'elegir_casa', fase: 2, texto: 'Elige tu casa', hecha: (x) => !!x.compra,
+    ayuda: 'Cuando tengas la buena, márcala como elegida: aparecerán los pasos y los papeles para reservarla.',
   },
 
-  // 3 · Ofertar y reservar
+  // 3 · Resérvala
   { clave: 'ofertar', fase: 3, texto: 'Haz tu oferta y negocia', ir: 'compra', hecha: (x) => !!x.compra && (x.compra.negociacion.length > 0 || x.compra.estado !== 'oferta') },
-  { clave: 'cargas', fase: 3, texto: 'Comprueba en la nota simple el dueño, las cargas y los embargos' },
-  { clave: 'deuda_comunidad', fase: 3, texto: 'Pide el certificado de deudas de la comunidad y pregunta por derramas', ir: '/papeles', hecha: (x) => x.tiene('comunidad') },
-  { clave: 'ibi', fase: 3, texto: 'Comprueba que el IBI está pagado', ir: '/papeles', hecha: (x) => x.tiene('ibi') },
-  { clave: 'energetico', fase: 3, texto: 'Pide el certificado energético', ir: '/papeles', hecha: (x) => x.tiene('energetico') },
-  { clave: 'ite', fase: 3, texto: 'Revisa la ITE del edificio y las obras previstas' },
-  { clave: 'cedula', fase: 3, texto: 'Cédula de habitabilidad o licencia de ocupación', ayuda: 'Depende de la comunidad. Sin ella puede haber problemas para dar de alta los suministros.' },
-  { clave: 'ocupacion', fase: 3, texto: 'Confirma que se entrega vacía', ayuda: 'Sin inquilinos ni ocupantes. Que conste en las arras.' },
-  { clave: 'superficie', fase: 3, texto: 'Compara los m² del Catastro con los de la nota simple' },
-  { clave: 'vpo', fase: 3, texto: 'Si es de protección oficial, revisa sus límites', ayuda: 'Precio máximo, requisitos del comprador y permisos para venderla.' },
-  { clave: 'quien_paga', fase: 3, texto: 'Deja claro quién paga la agencia y la plusvalía', ayuda: 'La plusvalía municipal es del vendedor. La comisión de la agencia, normalmente también.' },
   {
-    clave: 'arras', fase: 3, texto: 'Firma las arras', ir: 'compra', hecha: (x) => !!deCompra(x)?.fechaArras,
-    ayuda: 'Que digan "penitenciales" (art. 1454 del Código Civil): si te echas atrás pierdes la señal y si se echa atrás el vendedor te devuelve el doble. Si no lo dicen, se entienden confirmatorias. Pide que te devuelvan el dinero si el banco no te da la hipoteca.',
+    clave: 'nota_simple', fase: 3, texto: 'Pide la nota simple', ir: '/papeles', hecha: (x) => x.tiene('nota_simple'),
+    ayuda: 'Comprueba que el vendedor es el dueño y que no hay hipotecas, cargas ni embargos sin cancelar.',
   },
+  {
+    clave: 'catastro', fase: 3, texto: 'Consulta el Catastro', ir: '/papeles', hecha: (x) => x.tiene('catastro'),
+    ayuda: 'Apunta el valor de referencia en la ficha de la casa: si es mayor que el precio, el impuesto se paga sobre él.',
+  },
+  { clave: 'energetico', fase: 3, texto: 'Pide el certificado energético', ir: '/papeles', hecha: (x) => x.tiene('energetico') },
+  {
+    clave: 'deudas_casa', fase: 3, texto: 'Pregunta por deudas de comunidad, IBI y derramas',
+    ayuda: 'Pide al vendedor el certificado de deudas de la comunidad y el último recibo del IBI. Si hay derramas aprobadas, que las pague él.',
+  },
+  { clave: 'quien_paga', fase: 3, texto: 'Deja claro quién paga la agencia y la plusvalía', ayuda: 'La plusvalía municipal es del vendedor. La comisión de la agencia, normalmente también.' },
   { clave: 'aval_obra', fase: 3, texto: 'Exige aval o seguro de lo que adelantes', aplica: (x) => !!x.compra?.nueva, ayuda: 'En obra nueva, el promotor debe garantizar las cantidades a cuenta (Ley 38/1999).' },
   { clave: 'decenal', fase: 3, texto: 'Pide el seguro decenal y la licencia de primera ocupación', aplica: (x) => !!x.compra?.nueva },
-
-  // 4 · Conseguir la hipoteca
-  { clave: 'papeles', fase: 4, texto: 'Reúne tus papeles', ir: '/papeles', hecha: (x) => x.papelesTitulares },
-  { clave: 'ofertas', fase: 4, texto: 'Pide ofertas a 3 bancos o más', ir: '/hipoteca', hecha: (x) => x.d.hipotecas.filter((h) => !h.descartada).length >= 3, ayuda: 'O a un bróker. Cada uno te pedirá los mismos papeles.' },
-  { clave: 'comparar', fase: 4, texto: 'Compara el coste total, no solo el TIN', ir: '/hipoteca', ayuda: 'Las bonificaciones bajan el tipo pero cuestan dinero cada año. La app te dice si cada una compensa.' },
   {
-    clave: 'tasacion', fase: 4, texto: 'Tasación', ir: 'compra', hecha: (x) => (deCompra(x)?.tasacion ?? 0) > 0,
+    clave: 'arras', fase: 3, texto: 'Firma las arras', ir: 'compra', hecha: (x) => !!deCompra(x)?.fechaArras || (!!x.compra && x.compra.estado !== 'oferta'),
+    ayuda: 'Que digan "penitenciales" (art. 1454 del Código Civil): si te echas atrás pierdes la señal y si se echa atrás el vendedor te devuelve el doble. Pide que te la devuelvan si el banco no te da la hipoteca, y que conste que se entrega vacía.',
+  },
+
+  // 4 · Consigue la hipoteca
+  {
+    clave: 'ofertas', fase: 4, texto: 'Pide ofertas a 3 bancos o más', ir: '/hipoteca', hecha: (x) => x.d.hipotecas.filter((h) => !h.descartada).length >= 3,
+    ayuda: 'O a un bróker. Compara el coste total, no solo el tipo: la app te dice si cada producto que te piden compensa.',
+  },
+  {
+    clave: 'tasacion', fase: 4, texto: 'Tasación', ir: 'compra', hecha: (x) => (deCompra(x)?.tasacion ?? 0) > 0 || x.tiene('tasacion'),
     ayuda: 'La pagas tú (250–500 €) y vale 6 meses. El banco presta sobre el MENOR entre precio y tasación: si sale baja, la diferencia sale de tus ahorros.',
   },
   {
-    clave: 'fein', fase: 4, texto: 'Recibe la FEIN y la FiAE', ir: 'compra', hecha: (x) => !!deCompra(x)?.fein,
-    ayuda: 'Es la oferta vinculante. Desde que te la dan tienen que pasar al menos 10 días naturales (14 en Cataluña) hasta la firma.',
+    clave: 'fein', fase: 4, texto: 'Recibe la FEIN', ir: 'compra', hecha: (x) => !!deCompra(x)?.fein,
+    ayuda: 'Es la oferta vinculante del banco. Desde que te la dan tienen que pasar al menos 10 días naturales (14 en Cataluña) hasta la firma.',
   },
   { clave: 'elegir', fase: 4, texto: 'Elige banco', ir: 'compra', hecha: (x) => !!deCompra(x)?.hipotecaId },
+
+  // 5 · Firma
   {
-    clave: 'acta', fase: 4, texto: 'Acta de transparencia en el notario', ir: 'compra',
+    clave: 'acta', fase: 5, texto: 'Acta de transparencia en el notario', ir: 'compra',
     hecha: (x) => { const a = deCompra(x)?.acta; return !!a && a <= x.hoy; },
     ayuda: 'Gratis. Vas en persona, como tarde el día antes de firmar: el notario te explica la hipoteca y te hace un pequeño test.',
   },
-
-  // 5 · Firmar
   { clave: 'fecha_firma', fase: 5, texto: 'Fija la fecha de firma', ir: 'compra', hecha: (x) => !!deCompra(x)?.firma, ayuda: 'Con el vendedor, el banco y la notaría. El notario lo eliges tú.' },
   { clave: 'pago', fase: 5, texto: 'Prepara el pago al vendedor', ayuda: 'Precio menos arras, por transferencia o cheque bancario. Si el vendedor no es residente, se retiene el 3 % para Hacienda.' },
-  { clave: 'cancelacion', fase: 5, texto: 'Que el vendedor cancele su hipoteca en la firma' },
-  { clave: 'prorrateo', fase: 5, texto: 'Pacta el reparto del IBI y la comunidad del año' },
-  { clave: 'borrador', fase: 5, texto: 'Revisa el borrador de la escritura' },
+  { clave: 'borrador', fase: 5, texto: 'Revisa el borrador de la escritura', ayuda: 'Que el vendedor cancele su hipoteca en la firma y que esté claro cómo se reparten el IBI y la comunidad del año.' },
   { clave: 'dia_firma', fase: 5, texto: 'El día: DNI, lectura de contadores y llaves' },
 
-  // 6 · Después de firmar
+  // 6 · Ya es tuya
   {
-    clave: 'impuesto', fase: 6, texto: 'Paga el impuesto (modelo 600)', ir: '/papeles', hecha: (x) => x.tiene('modelo_600'),
+    clave: 'impuesto', fase: 6, texto: 'Paga el impuesto (modelo 600)',
     ayuda: 'El plazo es de 1 mes o 30 días hábiles según la comunidad: pagándolo en 4 semanas cumples en todas. Lo suele hacer la gestoría.',
   },
-  { clave: 'registro', fase: 6, texto: 'Inscripción en el Registro y escritura', ir: '/papeles', hecha: (x) => x.tiene('escritura') },
-  { clave: 'suministros', fase: 6, texto: 'Pon a tu nombre luz, agua, gas e internet' },
-  { clave: 'empadronarte', fase: 6, texto: 'Empadrónate' },
+  { clave: 'suministros', fase: 6, texto: 'Pon a tu nombre luz, agua, gas e internet, y empadrónate' },
   { clave: 'seguro_hogar', fase: 6, texto: 'Seguro de hogar', ayuda: 'Si no lo tienes ya por la hipoteca. El banco tiene que aceptar uno equivalente de otra aseguradora.' },
-  { clave: 'comunidad_ibi', fase: 6, texto: 'Avisa a la comunidad y domicilia el IBI' },
-  { clave: 'facturas', fase: 6, texto: 'Guarda la escritura y las facturas', ir: '/papeles', hecha: (x) => x.tiene('facturas'), ayuda: 'Los gastos de compra suman al valor de adquisición: pagarás menos impuestos cuando vendas.' },
+  { clave: 'facturas', fase: 6, texto: 'Guarda la escritura y las facturas', ayuda: 'Los gastos de compra suman al valor de adquisición: pagarás menos impuestos cuando vendas.' },
 ];

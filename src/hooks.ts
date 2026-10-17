@@ -17,6 +17,7 @@ import {
   ordenarHipotecas,
   papeles,
   proximos,
+  siguientePaso,
   tareas,
 } from '@/lib/motor';
 import { useApp } from '@/store/app';
@@ -34,14 +35,23 @@ export function useDatos(): Datos {
 
 export const useHoy = () => useApp((s) => s.hoy);
 
-/** La guía entera: casa en compra, papeles, fase, tareas, próximos y avisos. */
+/** La guía entera: casa en compra, fase, siguiente paso, papeles, tareas, próximos y avisos. */
 export function useGuia() {
   const d = useDatos();
   const hoy = useHoy();
   return useMemo(() => {
     const x = contexto(d, hoy);
-    const grupos = papeles(d, x.compra, hoy);
-    return { x, grupos, fase: faseActual(x), tareas: tareas(x), proximos: proximos(x, grupos), avisos: avisos(x, grupos) };
+    const fase = faseActual(x);
+    const grupos = papeles(d, x.compra, fase, hoy);
+    return {
+      x,
+      fase,
+      grupos,
+      siguiente: siguientePaso(x, fase),
+      tareas: tareas(x),
+      proximos: proximos(x, grupos),
+      avisos: avisos(x, grupos),
+    };
   }, [d, hoy]);
 }
 

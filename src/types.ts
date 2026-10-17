@@ -144,7 +144,6 @@ export type Ajustes = {
   gastosPct: number;
   tasacion: number;
   euribor: number;
-  euriborFecha: string;
   /** Máximo que presta el banco sobre el menor de precio y tasación. */
   financiacion: number;
   plazo: number;
