@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "HIPO",
+    "slug": "hipo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "hipo",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FFFFFF",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.aitorperez.hipo"
+    },
+    "android": {
+      "package": "com.aitorperez.hipo",
+      "allowBackup": false,
+      "blockedPermissions": ["android.permission.INTERNET"],
+      "softwareKeyboardLayoutMode": "resize",
+      "predictiveBackGestureEnabled": false,
+      "adaptiveIcon": {
+        "backgroundColor": "#9A4A2C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 140
+        }
+      ],
+      "expo-sharing",
+      ["expo-sqlite", { "useSQLCipher": true }],
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        { "faceIDPermission": "HIPO usa Face ID para proteger tus datos." }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,53 @@
+# Dependencias
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Nativo (Continuous Native Generation: se genera con `expo prebuild`)
+/android
+/ios
+.kotlin/
+*.orig.*
+*.apk
+*.aab
+
+# Claves y certificados
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+
+# Entorno
+.env
+.env*.local
+
+# Metro y TypeScript
+.metro-health-check*
+*.tsbuildinfo
+
+# Logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# IAs
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.claude/
+.codex/
+.cursor/
+.github/copilot-instructions.md
+
+# Editor y sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
