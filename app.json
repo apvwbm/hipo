@@ -2,7 +2,7 @@
   "expo": {
     "name": "HIPO",
     "slug": "hipo",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "scheme": "hipo",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.aitorperez.hipo",
-      "versionCode": 2,
+      "versionCode": 3,
       "allowBackup": false,
       "blockedPermissions": ["android.permission.INTERNET"],
       "softwareKeyboardLayoutMode": "resize",
